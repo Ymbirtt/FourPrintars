@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
+    <name>Four Printars</name>
+    <id>ymbirtt.four_printars</id>
+    
+    <!--  Parameters Here -->
+	
+    <effect>
+        <object-type>path</object-type>
+        <effects-menu>
+            <submenu name="Four Pillars"/>
+        </effects-menu>
+    </effect>
+    <script>
+        <command location="inx" interpreter="python">main.py</command>
+    </script>
+</inkscape-extension>

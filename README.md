@@ -26,7 +26,9 @@ archive directly into that directory.
 Restart Inkscape. If you've put it in the right place, you should see Four
 Printars appear under Extensions > Four Pillars.
 
-## Using an example
+[image here]
+
+## Using an Example
 
 The best way to see what's going on with Four Printars is to play around with
 the sample. You can see it in action [here](https://www.youtube.com/watch?v=lhN2iSQlsp4).
@@ -115,7 +117,7 @@ printer sheet, so making it snug is important.
 Now it's time to modify your placeholder fields so that Four Printars can find
 them and fill them in.
 
-For each placeholder, click it, and press Control+Shift+X to open up the XML
+For each placeholder, click it, and press Ctrl+Shift+X to open up the XML
 editor. You need to add two attributes to each placeholder field, like this:
 
 [image here]
@@ -130,10 +132,14 @@ it to one of the following values:
 
 | Value | Meaning |
 | ----- | ------- |
-| `key` | You want to search using this field, and selecting it should update all the other fields | 
-| `editable` | You want this field to be updated by a key field, but also want to be able to edit it via the interface before rendering |
-| `displayonly` | You want this field to be updated by a key field. You want to be able to see it, but don't want to be able to edit it before rendering |
-| `hidden` | You want this field to be updated by a key field quietly in the background. You don't want to see it at all in the interface, and only want to see it in the rendered output |
+| `key` | You want to search using this field, and selecting it should update all the other fields. Multiple keys per table are allowed. You might use this for something like a magic item's name | 
+| `editable` | You want this field to be updated by a key field, but also want to be able to edit it via the interface before rendering. You might use this for something like an item's description if you want some magic item to be broadly similar to others, but with the option to make subtle tweaks |
+| `displayonly` | You want this field to be updated by a key field. You want to be able to see it, but don't want to be able to edit it before rendering. You might use this for something like an item's cost, which you want to be very consistent between printings |
+| `hidden` | You want this field to be updated by a key field quietly in the background. You don't want to see it at all in the interface, and only want to see it in the rendered output. You might use this for something like a player's stats, where listing every level in every skill would just clutter the UI |
+
+If you want some examples, you can open `item_template.svg` in Inkscape, click
+on some of the placeholders and hit Ctrl+Shift+X to see what correct XML should
+look like.
 
 ### Hints and Tricks
 

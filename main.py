@@ -1,6 +1,9 @@
 import csv
 import sys
 import copy
+import os
+import os.path
+import yaml
 from lxml import etree
 from pprint import pformat
 from collections import defaultdict
@@ -59,8 +62,43 @@ class FourPrintars(inkex.GenerateExtension):
         self.outputs = {}
         self.records = None
         self.record_index_map = {}
+        self.config_filepath = os.path.join(os.environ['HOME'], '.config', 'FourPrintars.yaml')
+        self.config = self.load_config()
+        self.save_config()
 
         self.init_gtk()
+
+    def show_msg(self, text):
+        dialog = Gtk.MessageDialog(
+                    message_type=Gtk.MessageType.INFO,
+                    text=text,
+                    buttons=Gtk.ButtonsType.OK,
+                 )
+        dialog.run()
+
+    def load_config(self):
+        config_dir = os.path.dirname(self.config_filepath)
+
+        if not os.path.exists(config_dir):
+            os.mkdir(config_dir)
+            if os.name == 'nt':
+                import ctypes
+                FILE_ATTRIBUTE_HIDDEN = 0x02
+
+                ret = ctypes.windll.kernel32.\
+                        SetFileAttributesW(config_dir.encode('utf-16le'),
+                                FILE_ATTRIBUTE_HIDDEN)
+
+        if not os.path.exists(self.config_filepath):
+            self.show_msg(f"This appears to be your first time running FourPrintars.\n\nYour config file lives at {self.config_filepath} - I've initialised an empty one for you.")
+            return {}
+
+        with open(self.config_filepath, 'r') as f:
+            return yaml.load(f)
+
+    def save_config(self):
+        with open(self.config_filepath, 'w') as f:
+            yaml.dump(self.config, f)
 
     def init_gtk(self):
         handler = MainHandler(self)
@@ -68,17 +106,29 @@ class FourPrintars(inkex.GenerateExtension):
         self.builder.add_from_file("ui/four_printars_main.glade")
         self.builder.connect_signals(handler)
 
-        self.add_entry_window = self.builder.get_object("add_entry")
         self.inventory_window = self.builder.get_object("inventory")
-
-        self.add_entry_window.set_transient_for(self.inventory_window)
-
         self.inventory_window.connect("destroy", Gtk.main_quit)
 
         self.data_entries['fixed']['rows'] = self.builder.get_object('inventory_rows')
         self.data_entries['fixed']['columns'] = self.builder.get_object('inventory_columns')
         self.data_entries['fixed']['bleed'] = self.builder.get_object('inventory_bleed')
         self.data_entries['fixed']['quantity'] = self.builder.get_object('add_entry_quantity')
+
+    def save_render_options(self, render_options):
+        template_filename = os.path.basename(self.template_path)
+        for key, value in render_options.items():
+            self.update_config('default_render_option', template_filename, key, value)
+
+    def load_render_options(self):
+        template_filename = os.path.basename(self.template_path)
+        if rows := self.get_config('default_render_option', template_filename, 'rows'):
+            self.data_entries['fixed']['rows'].set_text(rows)
+
+        if columns := self.get_config('default_render_option', template_filename, 'columns'):
+            self.data_entries['fixed']['columns'].set_text(columns)
+
+        if bleed := self.get_config('default_render_option', template_filename, 'bleed'):
+            self.data_entries['fixed']['bleed'].set_text(bleed)
 
     def render(self):
         render_options = {
@@ -87,6 +137,7 @@ class FourPrintars(inkex.GenerateExtension):
             'bleed': self.data_entries['fixed']['bleed'].get_text(),
         }
         renderer = Renderer(self.template, self.svg, render_options)
+        self.save_render_options(render_options)
 
         flattened_records = []
         for record in self.records:
@@ -109,14 +160,51 @@ class FourPrintars(inkex.GenerateExtension):
             Gtk.STOCK_OPEN, Gtk.ResponseType.OK,
         )
 
+        if default_template_dir := self.get_config('default_template_dir'):
+            dialog.set_current_folder(default_template_dir)
+
         response = dialog.run()
         if response != Gtk.ResponseType.OK:
             Gtk.main_quit()
 
         self.template_path = dialog.get_filename()
+        self.update_config('default_template_dir', os.path.dirname(self.template_path))
         dialog.destroy()
         self.load_template()
         self.set_inventory_banner()
+        self.load_render_options()
+
+    def get_config(self, *args):
+        if len(args) < 1:
+            raise RuntimeError("Attempted to get config without a valid path!")
+        prefix_keys = args[:-1]
+        final_key = args[-1]
+
+        curr_config_dict = self.config
+        for key in prefix_keys:
+            if key not in curr_config_dict:
+                curr_config_dict = {}
+                break
+            else:
+                curr_config_dict = curr_config_dict[key]
+
+        return curr_config_dict.get(final_key)
+
+    def update_config(self, *args):
+        if len(args) < 2:
+            raise RuntimeError("Attempted to update config without a valid path!")
+        prefix_keys = args[:-2]
+        final_key = args[-2]
+        value = args[-1]
+
+        curr_config_dict = self.config
+        for key in prefix_keys:
+            if key not in curr_config_dict:
+                curr_config_dict[key] = {}
+            curr_config_dict = curr_config_dict[key]
+
+        curr_config_dict[final_key] = value
+        self.save_config()
 
     def load_template(self):
         with open(self.template_path, 'r') as f:
@@ -214,7 +302,6 @@ class FourPrintars(inkex.GenerateExtension):
         if iter_:
             self.records.remove(iter_)
 
-
     def select_table(self, table_name):
         dialog = Gtk.FileChooserDialog(
             title=f"Please choose a CSV file to load the {table_name} table",
@@ -226,12 +313,18 @@ class FourPrintars(inkex.GenerateExtension):
         )
         dialog.set_position(Gtk.WindowPosition.CENTER_ALWAYS)
 
+        if default_table_file := self.get_config('default_table_file', table_name):
+            dialog.set_filename(default_table_file)
+
         response = dialog.run()
         if response != Gtk.ResponseType.OK:
-            print("Exit clicked...")
+            print("Exit clicked...", file=sys.err)
             Gtk.main_quit()
 
-        ret = Table.from_csv(table_name, dialog.get_filename())
+        filename = dialog.get_filename()
+        ret = Table.from_csv(table_name, filename)
+        self.update_config('default_table_file', table_name, filename)
+
         dialog.destroy()
         return ret
 

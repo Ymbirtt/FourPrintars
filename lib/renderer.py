@@ -1,6 +1,7 @@
 import sys
 import inkex
 import copy
+import logging
 
 class Renderer():
     def __init__(self, template, svg, options):
@@ -8,6 +9,7 @@ class Renderer():
         self._svg = svg
         self._options = {}
         self._parse_options(options)
+        self._log = logging.getLogger(f"FourPrintars")
 
     def _parse_options(self, options):
         errors = []
@@ -66,6 +68,8 @@ class Renderer():
 
             self._svg.add(page_group)
 
+        self._log.info(f"Successfully rendered {len(records)} records on {num_pages} pages")
+
     def paginate(self, renders, rows, columns, bleed):
         renders_per_page = rows * columns
 
@@ -122,9 +126,9 @@ class Renderer():
         for tag in template_tags:
             for child in list(tag):
                 tag.remove(child)
-            print(tag, file=sys.stderr)
+            self._log.debug(tag)
             tag.text = record[tag.attrib['data-fp-value']]
-            print(tag.text, file=sys.stderr)
-            print("", file=sys.stderr)
+            self._log.debug(tag.text)
+            self._log.debug("")
 
         return new_g

@@ -4,6 +4,7 @@ import copy
 import os
 import os.path
 import yaml
+import logging
 from lxml import etree
 from pprint import pformat
 from collections import defaultdict
@@ -49,6 +50,15 @@ class Table:
         if all(of.path != path for of in self.output_fields):
             self.output_fields.append(OutputField(path, display_type))
 
+class ListStoreLogHandler(logging.Handler):
+    def __init__(self, list_store, *args):
+        super().__init__(*args)
+        self.__list_store = list_store
+
+    def emit(self, record):
+        msg = self.format(record)
+        self.__list_store.append([msg])
+
 class FourPrintars(inkex.GenerateExtension):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -65,6 +75,9 @@ class FourPrintars(inkex.GenerateExtension):
         self.config_filepath = os.path.join(os.environ['HOME'], '.config', 'FourPrintars.yaml')
         self.config = self.load_config()
         self.save_config()
+
+        self._log = logging.getLogger("FourPrintars")
+        self._log.setLevel(logging.DEBUG)
 
         self.init_gtk()
 
@@ -91,10 +104,12 @@ class FourPrintars(inkex.GenerateExtension):
 
         if not os.path.exists(self.config_filepath):
             self.show_msg(f"This appears to be your first time running FourPrintars.\n\nYour config file lives at {self.config_filepath} - I've initialised an empty one for you.")
+            self._log.info(f"Created new config at {self.config_filepath}")
             return {}
-
-        with open(self.config_filepath, 'r') as f:
-            return yaml.load(f)
+        else:
+            with open(self.config_filepath, 'r') as f:
+                config = yaml.load(f)
+            self._log.info(f"Loaded config from {self.config_filepath}")
 
     def save_config(self):
         with open(self.config_filepath, 'w') as f:
@@ -113,6 +128,14 @@ class FourPrintars(inkex.GenerateExtension):
         self.data_entries['fixed']['columns'] = self.builder.get_object('inventory_columns')
         self.data_entries['fixed']['bleed'] = self.builder.get_object('inventory_bleed')
         self.data_entries['fixed']['quantity'] = self.builder.get_object('add_entry_quantity')
+
+        log_store = self.builder.get_object('status_entry_store')
+        scrolling_window = self.builder.get_object('inventory_status_window')
+        def autoscroll(self, widget, *args):
+            adj = scrolling_window.get_vadjustment()
+            adj.set_value(adj.get_upper() - adj.get_page_size())
+        self.builder.get_object('inventory_status').connect('size-allocate', autoscroll)
+        self._log.addHandler(ListStoreLogHandler(log_store))
 
     def save_render_options(self, render_options):
         template_filename = os.path.basename(self.template_path)
@@ -171,7 +194,6 @@ class FourPrintars(inkex.GenerateExtension):
         self.update_config('default_template_dir', os.path.dirname(self.template_path))
         dialog.destroy()
         self.load_template()
-        self.set_inventory_banner()
         self.load_render_options()
 
     def get_config(self, *args):
@@ -203,8 +225,9 @@ class FourPrintars(inkex.GenerateExtension):
                 curr_config_dict[key] = {}
             curr_config_dict = curr_config_dict[key]
 
-        curr_config_dict[final_key] = value
-        self.save_config()
+        if curr_config_dict[final_key] != value:
+            curr_config_dict[final_key] = value
+            self.save_config()
 
     def load_template(self):
         with open(self.template_path, 'r') as f:
@@ -213,22 +236,23 @@ class FourPrintars(inkex.GenerateExtension):
         template_tags = self.template.findall("//*[@data-fp-value]")
         for tag in template_tags:
             table_name, model_path = tag.attrib['data-fp-value'].split('/', 1)
-            print(f"Found template tag for {table_name}/{model_path}", file=sys.stderr)
+            self._log.debug(f"Found template tag for {table_name}/{model_path}")
             if table_name not in self.tables:
                 if not table_name:
                     self.tables[table_name] = Table.from_nothing(table_name)
                 else:
                     self.tables[table_name] = self.select_table(table_name)
-                    self.set_inventory_banner()
 
             self.tables[table_name].add_output_field(model_path, tag.attrib['data-fp-type'])
-            print(f"Output fields: {','.join(of.path for of in self.tables[table_name].output_fields)}", file=sys.stderr)
+            self._log.debug(f"Output fields: {','.join(of.path for of in self.tables[table_name].output_fields)}")
+
+        self._log.info(f"Loaded template: {self.template_path}")
 
     def init_add_entry_form(self):
         main_grid = self.builder.get_object('add_entry_main_grid')
 
         for ii, table_name in enumerate(self.tables):
-            print(f"Adding entry form for table named: {table_name}", file=sys.stderr)
+            self._log.debug(f"Adding entry form for table named: {table_name}")
             if not table_name:
                 label = "Freeform fields"
             else:
@@ -245,11 +269,11 @@ class FourPrintars(inkex.GenerateExtension):
         entries = []
         output_fields = table.output_fields
         if table.header_map:
-            print(table.header_map, file=sys.stderr)
+            self._log.debug(table.header_map)
             output_fields.sort(key=lambda x: table.header_map[x.path])
 
         for jj, output_field in enumerate(output_fields):
-            print(f"Adding field for {output_field.path}", file=sys.stderr)
+            self._log.debug(f"Adding field for {output_field.path}")
 
             new_label = Gtk.Label(label=output_field.path + ": ")
             frame_grid.attach(new_label, 2*jj, 0, 1, 1)
@@ -318,7 +342,6 @@ class FourPrintars(inkex.GenerateExtension):
 
         response = dialog.run()
         if response != Gtk.ResponseType.OK:
-            print("Exit clicked...", file=sys.err)
             Gtk.main_quit()
 
         filename = dialog.get_filename()
@@ -326,10 +349,11 @@ class FourPrintars(inkex.GenerateExtension):
         self.update_config('default_table_file', table_name, filename)
 
         dialog.destroy()
+
+        self._log.info(f"Loaded {table_name} table from: {filename}")
         return ret
 
     def run_workflow(self):
-        self.set_inventory_banner()
         self.inventory_window.show_all()
         self.select_template()
         self.init_add_entry_form()
@@ -341,7 +365,6 @@ class FourPrintars(inkex.GenerateExtension):
         self.records = Gtk.ListStore(str, *[str] * num_fields)
         self.record_index_map = {"Quantity": 0}
 
-        # treeview = Gtk.TreeView()
         inventory_view = self.builder.get_object('inventory_view')
         inventory_view.set_model(self.records)
 
@@ -366,24 +389,6 @@ class FourPrintars(inkex.GenerateExtension):
                 inventory_view_column.pack_start(cellrenderertext, True)
                 inventory_view_column.add_attribute(cellrenderertext, "text", ii)
                 ii += 1
-
-    def set_inventory_banner(self):
-        inventory_banner = self.builder.get_object("inventory_banner")
-        banner_text = ""
-
-        if not self.template_path:
-            banner_text += "Template file not yet loaded\n"
-        else:
-            banner_text += f"Loaded template: {self.template_path}\n"
-
-        for name, table in self.tables.items():
-            if table and name:
-                banner_text += f"Loaded {name} table from: {table.source}\n"
-            elif name:
-                banner_text += f"{name} table not yet loaded...\n"
-
-        banner_text.strip()
-        inventory_banner.set_text(banner_text)
 
     def effect(self):
         self.run_workflow()

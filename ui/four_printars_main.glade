@@ -10,6 +10,12 @@
       <placeholder/>
     </child>
   </object>
+  <object class="GtkListStore" id="status_entry_store">
+    <columns>
+      <!-- column-name message -->
+      <column type="gchararray"/>
+    </columns>
+  </object>
   <object class="GtkWindow" id="inventory">
     <property name="can-focus">False</property>
     <child>
@@ -22,40 +28,6 @@
           <object class="GtkGrid">
             <property name="visible">True</property>
             <property name="can-focus">False</property>
-            <child>
-              <object class="GtkFrame">
-                <property name="visible">True</property>
-                <property name="can-focus">False</property>
-                <property name="label-xalign">0</property>
-                <child>
-                  <object class="GtkAlignment">
-                    <property name="visible">True</property>
-                    <property name="can-focus">False</property>
-                    <property name="left-padding">12</property>
-                    <child>
-                      <object class="GtkLabel" id="inventory_banner">
-                        <property name="visible">True</property>
-                        <property name="can-focus">False</property>
-                        <property name="label" translatable="yes">Loaded template: /path/to/template
-Loaded model 1 from: /path/to/model1.csv (x entries)
-Loaded model 2 from: /path/to/model2.csv(x entries)</property>
-                      </object>
-                    </child>
-                  </object>
-                </child>
-                <child type="label">
-                  <object class="GtkLabel">
-                    <property name="visible">True</property>
-                    <property name="can-focus">False</property>
-                    <property name="label" translatable="yes">Status</property>
-                  </object>
-                </child>
-              </object>
-              <packing>
-                <property name="left-attach">0</property>
-                <property name="top-attach">0</property>
-              </packing>
-            </child>
             <child>
               <object class="GtkFrame">
                 <property name="visible">True</property>
@@ -177,13 +149,15 @@ Loaded model 2 from: /path/to/model2.csv(x entries)</property>
                       <object class="GtkTreeView" id="inventory_view">
                         <property name="visible">True</property>
                         <property name="can-focus">True</property>
-                        <property name="model">liststore1</property>
                         <property name="headers-clickable">False</property>
                         <property name="enable-search">False</property>
                         <property name="search-column">0</property>
                         <property name="hover-expand">True</property>
                         <property name="show-expanders">False</property>
                         <property name="enable-grid-lines">horizontal</property>
+                        <child internal-child="selection">
+                          <object class="GtkTreeSelection"/>
+                        </child>
                       </object>
                     </child>
                   </object>
@@ -251,6 +225,63 @@ Loaded model 2 from: /path/to/model2.csv(x entries)</property>
               <packing>
                 <property name="left-attach">0</property>
                 <property name="top-attach">3</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkFrame">
+                <property name="visible">True</property>
+                <property name="can-focus">False</property>
+                <property name="label-xalign">0</property>
+                <child>
+                  <object class="GtkScrolledWindow" id="inventory_status_window">
+                    <property name="visible">True</property>
+                    <property name="can-focus">True</property>
+                    <property name="hscrollbar-policy">always</property>
+                    <property name="vscrollbar-policy">always</property>
+                    <property name="shadow-type">in</property>
+                    <child>
+                      <object class="GtkTreeView" id="inventory_status">
+                        <property name="visible">True</property>
+                        <property name="can-focus">True</property>
+                        <property name="model">status_entry_store</property>
+                        <property name="headers-visible">False</property>
+                        <property name="headers-clickable">False</property>
+                        <property name="enable-search">False</property>
+                        <property name="fixed-height-mode">True</property>
+                        <property name="enable-tree-lines">True</property>
+                        <property name="activate-on-single-click">True</property>
+                        <child internal-child="selection">
+                          <object class="GtkTreeSelection">
+                            <property name="mode">none</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkTreeViewColumn">
+                            <property name="sizing">fixed</property>
+                            <property name="title" translatable="yes">Message</property>
+                            <child>
+                              <object class="GtkCellRendererText"/>
+                              <attributes>
+                                <attribute name="text">0</attribute>
+                              </attributes>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                <child type="label">
+                  <object class="GtkLabel">
+                    <property name="visible">True</property>
+                    <property name="can-focus">False</property>
+                    <property name="label" translatable="yes">Status</property>
+                  </object>
+                </child>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">0</property>
               </packing>
             </child>
           </object>
@@ -454,23 +485,5 @@ Loaded model 2 from: /path/to/model2.csv(x entries)</property>
         </child>
       </object>
     </child>
-  </object>
-  <object class="GtkListStore" id="liststore1">
-    <columns>
-      <!-- column-name test -->
-      <column type="gint"/>
-      <!-- column-name test_2 -->
-      <column type="gint"/>
-    </columns>
-    <data>
-      <row>
-        <col id="0">1</col>
-        <col id="1">3</col>
-      </row>
-      <row>
-        <col id="0">2</col>
-        <col id="1">4</col>
-      </row>
-    </data>
   </object>
 </interface>

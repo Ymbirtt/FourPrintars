@@ -1,7 +1,7 @@
-import sys
 import inkex
 import copy
 import logging
+
 
 class Renderer():
     def __init__(self, template, svg, options):
@@ -9,7 +9,7 @@ class Renderer():
         self._svg = svg
         self._options = {}
         self._parse_options(options)
-        self._log = logging.getLogger(f"FourPrintars")
+        self._log = logging.getLogger("FourPrintars")
 
     def _parse_options(self, options):
         errors = []
@@ -31,14 +31,27 @@ class Renderer():
             self._options['bleed'] = float(options['bleed'])
         except ValueError:
             raise
+        return errors  # TODO: Do this properly
 
     def render(self, records):
         renders_per_page = self._options['rows'] * self._options['columns']
+        num_records_in = len(records)
         num_pages = (len(records) + (len(records) % renders_per_page)) // renders_per_page
-        last_page = self._svg.namedview.get_pages()[-1]
+        num_blanks = 0
 
-        last_page_x = last_page.x
-        x = last_page.x + last_page.width + 10
+        if len(records) % renders_per_page != 0:
+            # If the number of records isn't an integer multiple of the number
+            # of records per page, create some blank ones to round up
+            num_blanks = (renders_per_page - len(records) % renders_per_page)
+            records += [{k: "" for k in records[0].keys()}] * num_blanks
+            num_pages += 1
+
+        self._log.debug(f"Rendering {num_records_in} plus {num_blanks} blanks in a {self._options['columns']}x{self._options['rows']} grid on {num_pages} pages")
+
+        last_page = self._svg.namedview.get_pages()[-1]
+        space_between_pages = 10
+
+        x = last_page.x + last_page.width + space_between_pages
 
         new_pages = []
         for ii in range(num_pages):
@@ -46,7 +59,7 @@ class Renderer():
                     width=str(last_page.width), height=str(last_page.height),
                     label=f"Templated page {ii}")
             new_pages.append(new_page)
-            x += last_page.width + 10
+            x += last_page.width + space_between_pages
 
         rendered_templates = [self.render_one_template(ii, record)
                 for ii, record in enumerate(records)]
@@ -68,7 +81,7 @@ class Renderer():
 
             self._svg.add(page_group)
 
-        self._log.info(f"Successfully rendered {len(records)} records on {num_pages} pages")
+        self._log.info(f"Successfully rendered {num_records_in} records on {num_pages} pages")
 
     def paginate(self, renders, rows, columns, bleed):
         renders_per_page = rows * columns
@@ -116,6 +129,8 @@ class Renderer():
         new_g = inkex.Group.new(f"Template Instance {idx}", id=f"template_instance_{idx}")
         new_g.set("inkscape:groupmode", "layer")
 
+        self._log.debug(f"Render {idx}: {record}")
+
         for child in self._template.findall('./*'):
             # print(child.tag, file=sys.stderr)
             # print(child.get('id'), file=sys.stderr)
@@ -126,9 +141,6 @@ class Renderer():
         for tag in template_tags:
             for child in list(tag):
                 tag.remove(child)
-            self._log.debug(tag)
             tag.text = record[tag.attrib['data-fp-value']]
-            self._log.debug(tag.text)
-            self._log.debug("")
 
         return new_g

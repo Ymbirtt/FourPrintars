@@ -1,67 +1,27 @@
-import csv
-import sys
-import copy
+from lib.handlers.main_handler import MainHandler
+from lib.handlers.entry_table_handler import EntryTableHandler
+from lib.renderer import Renderer
+from lib.table import Table
+from lib.list_store_log_handler import ListStoreLogHandler
+
 import os
 import os.path
 import yaml
 import logging
-from lxml import etree
-from pprint import pformat
 from collections import defaultdict
 
 import inkex
 import gi
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, Gdk
+from gi.repository import Gtk
 
-from lib.handlers.main_handler import MainHandler
-from lib.handlers.entry_table_handler import EntryTableHandler
-from lib.renderer import Renderer
-
-class OutputField:
-    def __init__(self, path, display_type):
-        self.path = path
-        self.display_type = display_type
-
-class Table:
-    def __init__(self, name, source, headers, data):
-        self.name = name
-        self.source = source
-        self.output_fields = []
-        self.headers = headers
-        self.data = data
-        self.header_map = {header: ii for ii, header in enumerate(headers)}
-
-    @classmethod
-    def from_csv(cls, name, csv_path):
-        with open(csv_path, 'r') as f:
-            reader = csv.reader(f)
-            headers = next(reader)
-            data = Gtk.ListStore(*([str]*len(headers)))
-            for row in reader:
-                data.append(row)
-        return cls(name, csv_path, headers, data)
-
-    @classmethod
-    def from_nothing(cls, name):
-        return cls(name, '', [], [])
-
-    def add_output_field(self, path, display_type):
-        if all(of.path != path for of in self.output_fields):
-            self.output_fields.append(OutputField(path, display_type))
-
-class ListStoreLogHandler(logging.Handler):
-    def __init__(self, list_store, *args):
-        super().__init__(*args)
-        self.__list_store = list_store
-
-    def emit(self, record):
-        msg = self.format(record)
-        self.__list_store.append([msg])
 
 class FourPrintars(inkex.GenerateExtension):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        self._log = logging.getLogger("FourPrintars")
+        self._log.setLevel(logging.DEBUG)
 
         self.tables = {}
         self.template_path = None
@@ -73,13 +33,11 @@ class FourPrintars(inkex.GenerateExtension):
         self.records = None
         self.record_index_map = {}
         self.config_filepath = os.path.join(os.environ['HOME'], '.config', 'FourPrintars.yaml')
-        self.config = self.load_config()
-        self.save_config()
-
-        self._log = logging.getLogger("FourPrintars")
-        self._log.setLevel(logging.DEBUG)
 
         self.init_gtk()
+
+        self.config = self.load_config()
+        self.save_config()
 
     def show_msg(self, text):
         dialog = Gtk.MessageDialog(
@@ -98,9 +56,8 @@ class FourPrintars(inkex.GenerateExtension):
                 import ctypes
                 FILE_ATTRIBUTE_HIDDEN = 0x02
 
-                ret = ctypes.windll.kernel32.\
-                        SetFileAttributesW(config_dir.encode('utf-16le'),
-                                FILE_ATTRIBUTE_HIDDEN)
+                ctypes.windll.kernel32.SetFileAttributesW(
+                        config_dir.encode('utf-16le'), FILE_ATTRIBUTE_HIDDEN)
 
         if not os.path.exists(self.config_filepath):
             self.show_msg(f"This appears to be your first time running FourPrintars.\n\nYour config file lives at {self.config_filepath} - I've initialised an empty one for you.")
@@ -110,6 +67,7 @@ class FourPrintars(inkex.GenerateExtension):
             with open(self.config_filepath, 'r') as f:
                 config = yaml.load(f)
             self._log.info(f"Loaded config from {self.config_filepath}")
+            return config
 
     def save_config(self):
         with open(self.config_filepath, 'w') as f:
@@ -131,6 +89,7 @@ class FourPrintars(inkex.GenerateExtension):
 
         log_store = self.builder.get_object('status_entry_store')
         scrolling_window = self.builder.get_object('inventory_status_window')
+
         def autoscroll(self, widget, *args):
             adj = scrolling_window.get_vadjustment()
             adj.set_value(adj.get_upper() - adj.get_page_size())
@@ -225,7 +184,7 @@ class FourPrintars(inkex.GenerateExtension):
                 curr_config_dict[key] = {}
             curr_config_dict = curr_config_dict[key]
 
-        if curr_config_dict[final_key] != value:
+        if curr_config_dict.get(final_key) != value:
             curr_config_dict[final_key] = value
             self.save_config()
 
@@ -253,12 +212,8 @@ class FourPrintars(inkex.GenerateExtension):
 
         for ii, table_name in enumerate(self.tables):
             self._log.debug(f"Adding entry form for table named: {table_name}")
-            if not table_name:
-                label = "Freeform fields"
-            else:
-                label = table_name
             new_frame = Gtk.Frame(label=table_name)
-            main_grid.attach(new_frame, 0, ii+1, 1, 1)
+            main_grid.attach(new_frame, 0, ii + 1, 1, 1)
             frame_grid = Gtk.Grid()
             new_frame.add(frame_grid)
             self.populate_frame_grid_for_table(frame_grid, self.tables[table_name])
@@ -276,7 +231,7 @@ class FourPrintars(inkex.GenerateExtension):
             self._log.debug(f"Adding field for {output_field.path}")
 
             new_label = Gtk.Label(label=output_field.path + ": ")
-            frame_grid.attach(new_label, 2*jj, 0, 1, 1)
+            frame_grid.attach(new_label, 2 * jj, 0, 1, 1)
 
             if output_field.display_type == "key":
                 entry = Gtk.SearchEntry()
@@ -297,7 +252,7 @@ class FourPrintars(inkex.GenerateExtension):
                 entry.set_visible(False)
 
             self.data_entries['generated'][table.name][output_field.path] = entry
-            frame_grid.attach(entry, 2*jj + 1, 0, 1, 1)
+            frame_grid.attach(entry, 2 * jj + 1, 0, 1, 1)
             entries.append(entry)
 
         handler = EntryTableHandler(entries)
@@ -392,6 +347,7 @@ class FourPrintars(inkex.GenerateExtension):
 
     def effect(self):
         self.run_workflow()
+
 
 if __name__ == '__main__':
     FourPrintars().run()

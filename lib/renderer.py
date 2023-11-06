@@ -3,6 +3,12 @@ import copy
 import logging
 
 
+class RendererError(Exception):
+    def __init__(self, *args, **kwargs):
+        self.errors = kwargs.pop('errors')
+        super().__init__(*args, **kwargs)
+
+
 class Renderer():
     def __init__(self, template, svg, options):
         self._template = template
@@ -19,19 +25,27 @@ class Renderer():
 
         try:
             self._options['rows'] = int(options['rows'])
+            if self._options['rows'] <= 0:
+                raise ValueError(self._options['rows'])
         except ValueError:
-            raise
+            errors.append(f"Could not parse \"{options['rows']}\" as a number of rows. Please input a whole number")
 
         try:
             self._options['columns'] = int(options['columns'])
+            if self._options['columns'] <= 0:
+                raise ValueError(self._options['columns'])
         except ValueError:
-            raise
+            errors.append(f"Could not parse \"{options['columns']}\" as a number of columns. Please input a whole number")
 
         try:
             self._options['bleed'] = float(options['bleed'])
+            if self._options['bleed'] < 0:
+                raise ValueError(self._options['bleed'])
         except ValueError:
-            raise
-        return errors  # TODO: Do this properly
+            errors.append(f"Could not parse \"{options['bleed']}\" as a bleed width. Please input a number (decimals are allowed)")
+
+        if errors:
+            raise RendererError("Invalid options", errors=errors)
 
     def render(self, records):
         renders_per_page = self._options['rows'] * self._options['columns']

@@ -1,6 +1,6 @@
 from lib.handlers.main_handler import MainHandler
 from lib.handlers.entry_table_handler import EntryTableHandler
-from lib.renderer import Renderer
+from lib.renderer import Renderer, RendererError
 from lib.table import Table
 from lib.list_store_log_handler import ListStoreLogHandler
 
@@ -39,13 +39,14 @@ class FourPrintars(inkex.GenerateExtension):
         self.config = self.load_config()
         self.save_config()
 
-    def show_msg(self, text):
+    def show_msg(self, text, message_type=Gtk.MessageType.INFO):
         dialog = Gtk.MessageDialog(
-                    message_type=Gtk.MessageType.INFO,
+                    message_type=message_type,
                     text=text,
                     buttons=Gtk.ButtonsType.OK,
                  )
         dialog.run()
+        dialog.destroy()
 
     def load_config(self):
         config_dir = os.path.dirname(self.config_filepath)
@@ -118,19 +119,25 @@ class FourPrintars(inkex.GenerateExtension):
             'columns': self.data_entries['fixed']['columns'].get_text(),
             'bleed': self.data_entries['fixed']['bleed'].get_text(),
         }
-        renderer = Renderer(self.template, self.svg, render_options)
-        self.save_render_options(render_options)
+        try:
+            renderer = Renderer(self.template, self.svg, render_options)
+            self.save_render_options(render_options)
 
-        flattened_records = []
-        for record in self.records:
-            record = tuple(record)
-            record_as_dict = {field_name: record[field_idx] for field_name,
-                    field_idx in self.record_index_map.items()}
+            flattened_records = []
+            for record in self.records:
+                record = tuple(record)
+                record_as_dict = {field_name: record[field_idx] for field_name,
+                        field_idx in self.record_index_map.items()}
 
-            quantity = record_as_dict.pop('Quantity')
-            flattened_records += [record_as_dict] * int(quantity)
+                quantity = record_as_dict.pop('Quantity')
+                flattened_records += [record_as_dict] * int(quantity)
 
-        renderer.render(flattened_records)
+            renderer.render(flattened_records)
+            self.show_msg("Rendering finished!\n\nYou won't be able to see the results until you close Four Printars")
+
+        except RendererError as e:
+            msg = "Failed to render. Here's why:\n" + "\n".join(e.errors)
+            self.show_msg(msg, message_type=Gtk.MessageType.ERROR)
 
     def select_template(self):
         dialog = Gtk.FileChooserDialog(
@@ -261,8 +268,18 @@ class FourPrintars(inkex.GenerateExtension):
                 entry.get_completion().connect('match-selected', handler.on_match_selected)
 
     def add_record_to_inventory(self):
+        qty_text = self.data_entries['fixed']['quantity'].get_text()
+        try:
+            q = int(qty_text)
+            if q <= 0:
+                raise ValueError(qty_text)
+        except ValueError:
+            self.show_msg(f"Could not parse \"{qty_text}\" as a quantity. Please input a whole number", message_type=Gtk.MessageType.ERROR)
+            return
+
         record = {}
-        record['Quantity'] = self.data_entries['fixed']['quantity'].get_text()
+
+        record['Quantity'] = qty_text
         for table_name, output_dict in self.data_entries['generated'].items():
             for output_field_name, entry in output_dict.items():
                 record[table_name + '/' + output_field_name] = self.data_entries['generated'][table_name][output_field_name].get_text()

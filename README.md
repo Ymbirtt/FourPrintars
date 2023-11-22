@@ -8,7 +8,7 @@ files, exported from whatever database backs the LARP, asks the user what data
 should go on the loaded template, then neatly arranges filled-in copies of the
 templates onto pages for printing.
 
-[image here]
+![Some rendered lammies](./images/rendered_lammies.png)
 
 ## Installation
 
@@ -26,7 +26,7 @@ archive directly into that directory.
 Restart Inkscape. If you've put it in the right place, you should see Four
 Printars appear under Extensions > Four Pillars.
 
-[image here]
+![Four Printars visible under Extensions/Four Pillars](./images/install_check.png)
 
 ## Using an Example
 
@@ -57,9 +57,10 @@ First, you'll be prompted for an SVG template file. Find
 `examples/item_template.svg` and load it.
 
 Now you'll be prompted for the Item table - that's `items.csv`. Finally, the
-Player table - `players.csv`. You'll then be taken to the main interface.
+Player table - `players.csv`. You'll then be taken to the main interface, which
+confirms the tables you've just loaded
 
-[image]
+![The Four Printars main interface](./images/main_interface.png)
 
 You can prepare a batch of lammies using the controls on the right. If you start
 searching for an item and a player, you can select one of the suggestions to
@@ -68,7 +69,7 @@ Expires and Ref Name fields as you like. Finally, fill in the Quantity field
 with how many copies of that lammie you'd like, then hit "Add". You should see
 it appear in the inventory on the left.
 
-[image]
+![The filled-in user interface](./images/filled_in.png)
 
 Do this as much as you like for as many lammies as you like. When you're ready,
 fill in the "Rows", "Columns" and "Bleed" fields. The "Rows" and "Columns"
@@ -84,6 +85,10 @@ When everything's set up correctly, hit the "Render" button, then close the
 extension. You should see a number of new pages in your SVG containing your
 rendered lammies! You can now print this off and cut them out.
 
+![A successful render](./images/successful_render.png)
+
+![The results thereof](./images/rendered_lammies.png)
+
 Of course, these are random lammies for a LARP that doesn't exist. You want to
 do this for your LARP. To do that, you'll need to build your own templates.
 
@@ -98,14 +103,12 @@ First, use the normal Inkscape tools to build something that looks like your
 lammie. Add some placeholder text to all the fields you want Four Printars to
 fill in for you:
 
-[image here]
+![An example template](./images/item_template.png)
 
 Sometimes, you'll want to have multi-line text containing, say, a long-form item
 description. For these, you should create a text object, and a box that the text
 should stay inside. Select both of them in Inkscape, then use "Text > Flow into
 Frame" to make sure it stays contained:
-
-[image here]
 
 Once you've got everything laid out how you want it, be sure to neaten it up.
 Use "File > Document Properties > Resize to Content" to shrink the document to
@@ -120,7 +123,7 @@ them and fill them in.
 For each placeholder, click it, and press Ctrl+Shift+X to open up the XML
 editor. You need to add two attributes to each placeholder field, like this:
 
-[image here]
+![New attributes added to a text object](./images/new_attributes.png)
 
 `data-fp-value` tells Four Printars how it should find the value that ends up
 in the field. It should be formatted as `{Table}/{Column}`. For instance, if

@@ -269,11 +269,14 @@ class FourPrintars(inkex.GenerateExtension):
                 entry.data_column_idx = table.header_map[output_field.path]
 
             self.data_entries['generated'][table.name][output_field.path] = entry
+            num_cols = 3
             if output_field.display_type != 'hidden':
                 new_label = Gtk.Label(label=output_field.path)
-                frame_grid.attach(new_label, 2 * output_field_idx, 0, 1, 1)
+                row = output_field_idx / num_cols
+                col = 2 * (output_field_idx % num_cols)
 
-                frame_grid.attach(entry, 2 * output_field_idx + 1, 0, 1, 1)
+                frame_grid.attach(new_label, col, row, 1, 1)
+                frame_grid.attach(entry, col + 1, row, 1, 1)
 
                 output_field_idx += 1
 

@@ -8,6 +8,8 @@ import os
 import os.path
 import yaml
 import logging
+import traceback
+import sys
 from collections import defaultdict
 
 import inkex
@@ -22,6 +24,8 @@ class FourPrintars(inkex.GenerateExtension):
 
         self._log = logging.getLogger("FourPrintars")
         self._log.setLevel(logging.DEBUG)
+        logging.basicConfig(stream=sys.stderr)
+        self._log.debug("Debug logging enabled!")
 
         self.tables = {}
         self.template_path = None
@@ -94,6 +98,7 @@ class FourPrintars(inkex.GenerateExtension):
         def autoscroll(self, widget, *args):
             adj = scrolling_window.get_vadjustment()
             adj.set_value(adj.get_upper() - adj.get_page_size())
+
         self.builder.get_object('inventory_status').connect('size-allocate', autoscroll)
         self._log.addHandler(ListStoreLogHandler(log_store))
 
@@ -137,6 +142,9 @@ class FourPrintars(inkex.GenerateExtension):
 
         except RendererError as e:
             msg = "Failed to render. Here's why:\n" + "\n".join(e.errors)
+            self.show_msg(msg, message_type=Gtk.MessageType.ERROR)
+        except Exception:
+            msg = "Something went terribly wrong!\n" + traceback.format_exc()
             self.show_msg(msg, message_type=Gtk.MessageType.ERROR)
 
     def select_template(self):
@@ -210,8 +218,8 @@ class FourPrintars(inkex.GenerateExtension):
                     self.tables[table_name] = self.select_table(table_name)
 
             self.tables[table_name].add_output_field(model_path, tag.attrib['data-fp-type'])
-            self._log.debug(f"Output fields: {','.join(of.path for of in self.tables[table_name].output_fields)}")
 
+        self._log.debug(f"Output fields: {','.join(of.path for of in self.tables[table_name].output_fields)}")
         self._log.info(f"Loaded template: {self.template_path}")
 
     def init_add_entry_form(self):
@@ -231,14 +239,12 @@ class FourPrintars(inkex.GenerateExtension):
         entries = []
         output_fields = table.output_fields
         if table.header_map:
-            self._log.debug(table.header_map)
+            self._log.debug("Table header map:" + str(table.header_map))
             output_fields.sort(key=lambda x: table.header_map[x.path])
 
-        for jj, output_field in enumerate(output_fields):
+        output_field_idx = 0
+        for output_field in output_fields:
             self._log.debug(f"Adding field for {output_field.path}")
-
-            new_label = Gtk.Label(label=output_field.path + ": ")
-            frame_grid.attach(new_label, 2 * jj, 0, 1, 1)
 
             if output_field.display_type == "key":
                 entry = Gtk.SearchEntry()
@@ -258,13 +264,26 @@ class FourPrintars(inkex.GenerateExtension):
                 entry.set_editable(False)
                 entry.set_visible(False)
 
+            entry.data_column_name = output_field.path
+            if table.header_map:
+                entry.data_column_idx = table.header_map[output_field.path]
+
             self.data_entries['generated'][table.name][output_field.path] = entry
-            frame_grid.attach(entry, 2 * jj + 1, 0, 1, 1)
+            if output_field.display_type != 'hidden':
+                new_label = Gtk.Label(label=output_field.path)
+                frame_grid.attach(new_label, 2 * output_field_idx, 0, 1, 1)
+
+                frame_grid.attach(entry, 2 * output_field_idx + 1, 0, 1, 1)
+
+                output_field_idx += 1
+
             entries.append(entry)
 
         handler = EntryTableHandler(entries)
         for entry in entries:
             if entry.get_completion():
+                if not table.header_map:
+                    raise Exception("A key field has been used on a non-table-backed storage. I can't look up things from something that's not a table!")
                 entry.get_completion().connect('match-selected', handler.on_match_selected)
 
     def add_record_to_inventory(self):
@@ -356,7 +375,10 @@ class FourPrintars(inkex.GenerateExtension):
                 inventory_view_column = Gtk.TreeViewColumn(full_path)
                 inventory_view_column.set_resizable(True)
                 inventory_view_column.set_sizing(Gtk.TreeViewColumnSizing.FIXED)
-                inventory_view_column.set_fixed_width(100)
+                if output_field.display_type == 'hidden':
+                    inventory_view_column.set_fixed_width(0)
+                else:
+                    inventory_view_column.set_fixed_width(100)
                 inventory_view.append_column(inventory_view_column)
                 inventory_view_column.pack_start(cellrenderertext, True)
                 inventory_view_column.add_attribute(cellrenderertext, "text", ii)

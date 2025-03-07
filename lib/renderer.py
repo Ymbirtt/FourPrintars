@@ -93,7 +93,7 @@ class Renderer():
             transform.add_translate(page.x + x_offs, page.y + y_offs)
             page_group.set("transform", transform)
 
-            self._svg.add(page_group)
+            # self._svg.add(page_group)
 
         self._log.info(f"Successfully rendered {num_records_in} records on {num_pages} pages")
 
@@ -110,7 +110,8 @@ class Renderer():
             max_row_height = 0
 
             page_group = inkex.Group.new(f"Template Page Group {idx}", id=f"template_page_group_{idx}")
-            page_group.set("inkscape:groupmode", "layer")
+            self._svg.add(page_group)
+            # page_group.set("inkscape:groupmode", "layer")
 
             for render in page_renders:
                 transform = inkex.transforms.Transform()
@@ -141,7 +142,7 @@ class Renderer():
 
     def render_one_template(self, idx, record):
         new_g = inkex.Group.new(f"Template Instance {idx}", id=f"template_instance_{idx}")
-        new_g.set("inkscape:groupmode", "layer")
+        # new_g.set("inkscape:groupmode", "layer")
 
         self._log.debug(f"Render {idx}: {record}")
 

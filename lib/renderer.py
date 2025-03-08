@@ -12,6 +12,11 @@ class RendererError(Exception):
 class Renderer():
     def __init__(self, template, svg, options):
         self._template = template
+        template_root = template.getroot()
+        width = template_root.get('width')
+        height = template_root.get('height')
+        self._template_width_mm = inkex.units.convert_unit(width, 'mm')
+        self._template_height_mm = inkex.units.convert_unit(height, 'mm')
         self._svg = svg
         self._options = {}
         self._parse_options(options)
@@ -78,26 +83,31 @@ class Renderer():
         rendered_templates = [self.render_one_template(ii, record)
                 for ii, record in enumerate(records)]
 
+        rows = self._options['rows']
+        columns = self._options['columns']
+        bleed = self._options['bleed']
+        bleed_box_width = (self._template_width_mm + bleed) * columns + bleed
+        bleed_box_height = (self._template_height_mm + bleed) * rows + bleed
         page_iter = self.paginate(
                         rendered_templates,
-                        self._options['rows'],
-                        self._options['columns'],
-                        self._options['bleed'],
+                        rows,
+                        columns,
+                        bleed,
+                        bleed_box_width,
+                        bleed_box_height,
                     )
 
         for page, page_group in zip(new_pages, page_iter):
-            bbox = page_group.shape_box()
-            x_offs = (page.width - bbox.width) / 2
-            y_offs = (page.height - bbox.height) / 2
+            x_offs = (page.width - bleed_box_width) / 2
+            y_offs = (page.height - bleed_box_height) / 2
             transform = inkex.transforms.Transform()
             transform.add_translate(page.x + x_offs, page.y + y_offs)
             page_group.set("transform", transform)
 
-            # self._svg.add(page_group)
-
         self._log.info(f"Successfully rendered {num_records_in} records on {num_pages} pages")
 
-    def paginate(self, renders, rows, columns, bleed):
+    def paginate(self, renders, rows, columns, bleed, bleed_box_width,
+            bleed_box_height):
         renders_per_page = rows * columns
 
         for idx, start_pos in enumerate(range(0, len(renders), renders_per_page)):
@@ -131,8 +141,7 @@ class Renderer():
                     y_coord += max_row_height + bleed
                     max_row_height = 0
 
-            bbox = page_group.shape_box()
-            bleed_box = inkex.elements.Rectangle.new(0, 0, bbox.width + bleed * 2, bbox.height + bleed * 2)
+            bleed_box = inkex.elements.Rectangle.new(0, 0, bleed_box_width, bleed_box_height)
             bleed_box.style['fill'] = 'black'
             bleed_box.style['opacity'] = 1
             bleed_box.style['fill-opacity'] = 1
